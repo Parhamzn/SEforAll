@@ -94,11 +94,11 @@ Two visual themes ship in the same file. Toggle between them instantly using the
 
 **V1 — UN Energy Website Theme (light)**
 
-![V1 light theme: dashboard with map, SDG 7 tiles, and Other Metrics grid](Metrics%20Dashboard/images/p01_x0032_1400x900.jpeg)
+![V1 light theme: dashboard with map, SDG 7 tiles, and Other Metrics grid](Metrics%20Dashboard/images/dashboard_v1_light.png)
 
 **V2 — SEforAll Website Theme (dark)**
 
-![V2 dark theme: identical layout in dark navy / amber palette](Metrics%20Dashboard/images/p01_x0037_1400x900.jpeg)
+![V2 dark theme: identical layout in dark navy / amber palette](Metrics%20Dashboard/images/dashboard_v2_dark.png)
 
 ### Bottom Toolbar
 
