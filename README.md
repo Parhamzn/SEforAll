@@ -35,9 +35,9 @@ An interactive force-directed network visualization of compacts and the actors (
 
 ### Demo
 
-https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4
+![Network Graph demo: searching, filtering, isolating compacts, and exporting](Network%20Graph/network_graph_demo.gif)
 
-<video src="https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4" controls width="100%"></video>
+*Full-quality version with audio: [`network_graph_demo.mp4`](Network%20Graph/network_graph_demo.mp4)*
 
 ![Default view: full ecosystem with Node Connections ≥ 5 — compacts (amber squares) and actors (blue circles)](Network%20Graph/images/p02_x0007_1320x725.jpeg)
 

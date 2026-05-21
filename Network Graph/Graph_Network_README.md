@@ -4,9 +4,9 @@ An interactive network visualization tool for exploring the relationships betwee
 
 ## Demo
 
-https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4
+![Network Graph demo: searching, filtering, isolating compacts, and exporting](network_graph_demo.gif)
 
-<video src="https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4" controls width="100%"></video>
+*Full-quality version with audio: [`network_graph_demo.mp4`](network_graph_demo.mp4)*
 
 ## Overview
 
