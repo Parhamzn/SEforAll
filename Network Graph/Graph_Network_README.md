@@ -2,6 +2,12 @@
 
 An interactive network visualization tool for exploring the relationships between Energy Compacts and their participating Actors within the UN Energy Compacts framework.
 
+## Demo
+
+https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4
+
+<video src="https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4" controls width="100%"></video>
+
 ## Overview
 
 This tool takes a structured CSV or Excel database of compact-actor relationships and generates a force-directed network graph where compacts and actors are represented as nodes, and their relationships as links. Users can explore the ecosystem by searching, filtering, clicking to isolate entities, and examining detailed connection information through an interactive sidebar.
