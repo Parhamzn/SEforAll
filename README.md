@@ -33,6 +33,12 @@ SEforAll/
 
 An interactive force-directed network visualization of compacts and the actors (countries, organizations, companies, institutions) that participate in them. Built on D3.js, the graph reveals how compacts cluster, which actors serve as hubs, and how compacts connect through shared participants. The current sample dataset resolves to **169 compacts**, **1,204 actors**, and **2,067 relationships**.
 
+### Demo
+
+https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4
+
+<video src="https://github.com/Parhamzn/SEforAll/raw/main/Network%20Graph/network_graph_demo.mp4" controls width="100%"></video>
+
 ![Default view: full ecosystem with Node Connections ≥ 5 — compacts (amber squares) and actors (blue circles)](Network%20Graph/images/p02_x0007_1320x725.jpeg)
 
 ### Adjust Density to Reveal Structure
