@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Energy Compacts Metrics Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,300;0,400;0,500;1,400&family=Oswald:wght@300;400;500;600;700&family=Open+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; }
+    body { font-family: "IBM Plex Sans", -apple-system, sans-serif; }
+    * { box-sizing: border-box; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.10/babel.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+// ═══════════════════════════════════════════════════════════
+// METRICS
+// ═══════════════════════════════════════════════════════════
+
+const METRICS = [
+{ id: 'finance_committed', label: 'Finance Committed to be Deployed', unit: 'US$', format: 'currency', sdg: 'Finance' },
+{ id: 'electricity', label: 'New & Improved Electricity Connections', unit: 'million people', format: 'decimal', sdg: 'SDG 7.1.1', hero: true },
+{ id: 'clean_cooking', label: 'New & Improved Clean Cooking Access', unit: 'million people', format: 'decimal', sdg: 'SDG 7.1.2', hero: true },
+{ id: 'renewable_capacity', label: 'New Installed Renewable Capacity', unit: 'GW', format: 'decimal', sdg: 'SDG 7.2', hero: true },
+{ id: 'energy_savings', label: 'Energy Savings', unit: 'GWh', format: 'integer', sdg: 'SDG 7.3', hero: true },
+{ id: 'green_jobs', label: 'Green Jobs Created', unit: 'jobs', format: 'integer', sdg: 'SDG 8' },
+{ id: 'jobs_training', label: 'Green Jobs Training Provided', unit: 'people trained', format: 'integer', sdg: 'SDG 8' },
+{ id: 'clean_vehicles', label: 'Clean Buses, Vehicles & Trains', unit: 'vehicles', format: 'integer', sdg: 'SDG 11.2' },
+{ id: 'charging_infra', label: 'Charging & Refueling Infrastructure', unit: 'stations', format: 'integer', sdg: 'SDG 11.2' },
+{ id: 'ghg_averted', label: 'GHG Emissions Averted', unit: 'million tonnes', format: 'decimal', sdg: 'SDG 13' },
+{ id: 'partnerships', label: 'Partnerships for Goals', unit: 'partnerships', format: 'integer', sdg: 'SDG 17' },
+{ id: 'netzero_pledges', label: 'Net Zero Pledges', unit: 'pledges', format: 'integer', sdg: 'Net Zero' }];
+
+
+// ═══════════════════════════════════════════════════════════
+// CSV / XLSX PARSER — New data model
+// ═══════════════════════════════════════════════════════════
+
+// Metric column header hints → metric id
+const METRIC_HEADER_MAP = [
+  { match: 'finance committed',       id: 'finance_committed' },
+  { match: 'sdg7.1.1',                id: 'electricity' },
+  { match: 'electricity connection',   id: 'electricity' },
+  { match: 'sdg7.1.2',                id: 'clean_cooking' },
+  { match: 'clean cooking',           id: 'clean_cooking' },
+  { match: 'sdg7.2',                  id: 'renewable_capacity' },
+  { match: 'renewable capacity',      id: 'renewable_capacity' },
+  { match: 'sdg7.3',                  id: 'energy_savings' },
+  { match: 'energy savings',          id: 'energy_savings' },
+  { match: 'green jobs created',      id: 'green_jobs' },
+  { match: 'jobs training',           id: 'jobs_training' },
+  { match: 'people trained',          id: 'jobs_training' },
+  { match: 'buses',                   id: 'clean_vehicles' },
+  { match: 'vehicles or trains',      id: 'clean_vehicles' },
+  { match: 'charging',                id: 'charging_infra' },
+  { match: 'refueling',               id: 'charging_infra' },
+  { match: 'ghg',                     id: 'ghg_averted' },
+  { match: 'sdg13',                   id: 'ghg_averted' },
+  { match: 'partnerships',            id: 'partnerships' },
+  { match: 'sdg17',                   id: 'partnerships' },
+  { match: 'net zero',                id: 'netzero_pledges' },
+];
+
+// Target year column hints → which metric ids they apply to
+const TARGET_YEAR_MAP = [
+  { match: 'finance',   ids: ['finance_committed'] },
+  { match: 'sdg7.1.1',  ids: ['electricity'] },
+  { match: 'sdg7.1.2',  ids: ['clean_cooking'] },
+  { match: 'sdg7.2',    ids: ['renewable_capacity'] },
+  { match: 'sdg7.3',    ids: ['energy_savings'] },
+  { match: 'sdg8',      ids: ['green_jobs', 'jobs_training'] },
+  { match: 'sdg11',     ids: ['clean_vehicles', 'charging_infra'] },
+  { match: 'sdg13',     ids: ['ghg_averted'] },
+  { match: 'sdg17',     ids: ['partnerships'] },
+  { match: 'net zero',  ids: ['netzero_pledges'] },
+];
+
+function parseNumber(val) {
+  if (val == null) return 0;
+  const s = String(val).trim().replace(/,/g, '').replace(/\s/g, '');
+  if (s === '' || s === '-' || s === '\u2013' || s === 'N/A' || s === 'n/a') return 0;
+  const n = Number(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function isYes(val) {
+  if (!val) return false;
+  const s = String(val).trim().toLowerCase();
+  const m = s.match(/^[a-z0-9]+/);
+  const tok = m ? m[0] : '';
+  return tok === 'y' || tok === 'yes' || tok === '1' || tok === 'true';
+}
+
+function classifyHeader(header) {
+  const h = header.toLowerCase().trim();
+
+  // Origin country
+  if (h.includes('origin country') || h === 'origin') return { type: 'originCountry' };
+
+  // Compact name
+  if (h === 'compact' || h === 'registry name' || h === 'registry') return { type: 'registry' };
+  if (h === 'compact id') return { type: 'compactId' };
+
+  // One-hot proponent types (header starts with "proponent type")
+  if (h.startsWith('proponent type')) {
+    const name = header.replace(/^proponent type\s*/i, '').trim();
+    return { type: 'proponentType', name: name || header };
+  }
+
+  // Coverage regions (header starts with "coverage region")
+  if (h.startsWith('coverage region')) {
+    const name = header.replace(/^coverage region\s*/i, '').trim();
+    return { type: 'coverageRegion', name: name || header };
+  }
+
+  // Target year columns
+  if (h.startsWith('target year')) {
+    const rest = h.replace('target year', '').trim();
+    for (const m of TARGET_YEAR_MAP) {
+      if (rest.includes(m.match)) return { type: 'targetYear', metricIds: m.ids };
+    }
+    return null;
+  }
+
+  // Metric columns
+  for (const m of METRIC_HEADER_MAP) {
+    if (h.includes(m.match)) return { type: 'metric', id: m.id };
+  }
+
+  return null;
+}
+
+function parseCSVData(csvText) {
+  const result = Papa.parse(csvText, { header: true, skipEmptyLines: true, dynamicTyping: false });
+  if (!result.data || result.data.length === 0) throw new Error('No data rows found');
+  const headers = result.meta.fields || [];
+
+  // Classify all headers
+  const columnMap = {};
+  headers.forEach(h => {
+    const cls = classifyHeader(h);
+    if (cls) columnMap[h] = cls;
+  });
+
+  // Parse rows
+  const compacts = result.data.map((row, i) => {
+    const c = {
+      id: i,
+      registry: '',
+      proponentTypes: [],
+      coverageRegions: [],
+      originCountry: '',
+      metrics: {},
+    };
+
+    // Initialize metrics with value + targetYear
+    METRICS.forEach(m => { c.metrics[m.id] = { value: 0, targetYear: null }; });
+
+    Object.entries(columnMap).forEach(([header, cls]) => {
+      const val = row[header];
+      if (cls.type === 'registry') {
+        c.registry = (val || '').trim();
+      } else if (cls.type === 'originCountry') {
+        c.originCountry = (val || '').trim();
+      } else if (cls.type === 'proponentType') {
+        if (isYes(val)) c.proponentTypes.push(cls.name);
+      } else if (cls.type === 'coverageRegion') {
+        if (isYes(val)) c.coverageRegions.push(cls.name);
+      } else if (cls.type === 'metric') {
+        if (cls.id === 'netzero_pledges') {
+          c.metrics[cls.id].value = isYes(val) ? 1 : 0;
+        } else {
+          c.metrics[cls.id].value = parseNumber(val);
+        }
+      } else if (cls.type === 'targetYear') {
+        const yr = parseInt(val);
+        if (!isNaN(yr) && yr > 0) {
+          cls.metricIds.forEach(mid => {
+            if (c.metrics[mid]) c.metrics[mid].targetYear = yr;
+          });
+        }
+      }
+    });
+
+    c._isGlobal = BASE_REGIONS.every(r => c.coverageRegions.includes(r));
+    return c;
+  }).filter(c => c.registry && c.registry.length > 0);
+
+  // Discover unique proponent types
+  const allPT = new Set();
+  compacts.forEach(c => c.proponentTypes.forEach(pt => allPT.add(pt)));
+  const proponentTypes = [...allPT].sort();
+  const originCountries = [...new Set(compacts.map(c => c.originCountry).filter(c => c))].sort();
+
+  return { compacts, proponentTypes, originCountries, rowCount: compacts.length };
+}
+
+let PROPONENT_TYPES = [], ORIGIN_COUNTRIES = [], COMPACTS = [];
+function loadParsedData(p) {
+  COMPACTS = p.compacts;
+  PROPONENT_TYPES = p.proponentTypes;
+  ORIGIN_COUNTRIES = p.originCountries || [];
+  _regionResolveCache.clear();
+  Object.assign(window, { PROPONENT_TYPES, ORIGIN_COUNTRIES, COMPACTS });
+}
+
+
+
+// ═══════════════════════════════════════════════════════════
+// AGGREGATION & FORMATTING (new per-metric target year model)
+// ═══════════════════════════════════════════════════════════
+
+// Fixed coverage regions
+
+const COUNTRY_TO_REGION = (() => {
+  const t = {};
+  // ---- AFRICA (54 UN member states) ----
+  [
+    'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi',
+    'Cabo Verde', 'Cape Verde', 'Cameroon', 'Central African Republic',
+    'Chad', 'Comoros', 'Congo', 'Republic of the Congo',
+    'Democratic Republic of the Congo', 'DR Congo', 'DRC',
+    "Cote d'Ivoire", "Côte d'Ivoire", 'Ivory Coast',
+    'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Swaziland',
+    'Ethiopia', 'Gabon', 'Gambia', 'The Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau',
+    'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi',
+    'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique',
+    'Namibia', 'Niger', 'Nigeria', 'Rwanda',
+    'São Tomé and Príncipe', 'Sao Tome and Principe',
+    'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa',
+    'South Sudan', 'Sudan', 'Tanzania', 'United Republic of Tanzania',
+    'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe'
+  ].forEach(c => t[c] = 'Africa');
+
+  // ---- AMERICAS (North, Central, South, Caribbean) ----
+  [
+    'Antigua and Barbuda', 'Argentina', 'Bahamas', 'The Bahamas',
+    'Barbados', 'Belize', 'Bolivia', 'Brazil', 'Canada',
+    'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Dominica',
+    'Dominican Republic', 'Ecuador', 'El Salvador', 'Grenada',
+    'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica',
+    'Mexico', 'Nicaragua', 'Panama', 'Paraguay', 'Peru',
+    'Saint Kitts and Nevis', 'Saint Lucia',
+    'Saint Vincent and the Grenadines', 'Suriname',
+    'Trinidad and Tobago',
+    'United States', 'United States of America', 'USA', 'U.S.A.', 'US',
+    'Uruguay', 'Venezuela'
+  ].forEach(c => t[c] = 'Americas');
+
+  // ---- EUROPE (all European states incl. Russia, Turkey, Cyprus, UK, Iceland) ----
+  [
+    'Albania', 'Andorra', 'Armenia', 'Austria', 'Azerbaijan',
+    'Belarus', 'Belgium', 'Bosnia and Herzegovina', 'Bulgaria',
+    'Croatia', 'Cyprus', 'Czechia', 'Czech Republic',
+    'Denmark', 'Estonia', 'Finland', 'France', 'Georgia',
+    'Germany', 'Greece', 'Hungary', 'Iceland', 'Ireland',
+    'Italy', 'Kazakhstan', 'Kosovo', 'Latvia', 'Liechtenstein',
+    'Lithuania', 'Luxembourg', 'Malta', 'Moldova', 'Republic of Moldova',
+    'Monaco', 'Montenegro', 'Netherlands', 'The Netherlands',
+    'North Macedonia', 'Norway', 'Poland', 'Portugal', 'Romania',
+    'Russia', 'Russian Federation', 'San Marino', 'Serbia',
+    'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland',
+    'Türkiye', 'Turkey', 'Ukraine',
+    'United Kingdom', 'UK', 'Britain', 'Great Britain',
+    'Vatican', 'Vatican City', 'Holy See'
+  ].forEach(c => t[c] = 'Europe');
+
+  // ---- ASIA-PACIFIC (rest of Asia + Middle East + Oceania) ----
+  [
+    'Afghanistan', 'Bahrain', 'Bangladesh', 'Bhutan', 'Brunei',
+    'Brunei Darussalam', 'Cambodia', 'China', "People's Republic of China",
+    'India', 'Indonesia', 'Iran', 'Islamic Republic of Iran',
+    'Iraq', 'Israel', 'Japan', 'Jordan', 'Kuwait',
+    'Kyrgyzstan', 'Laos', "Lao People's Democratic Republic",
+    'Lebanon', 'Malaysia', 'Maldives', 'Mongolia',
+    'Myanmar', 'Burma', 'Nepal',
+    'North Korea', 'DPRK', "Democratic People's Republic of Korea",
+    'Oman', 'Pakistan', 'Palestine', 'State of Palestine',
+    'Philippines', 'Qatar',
+    'Saudi Arabia', 'Singapore',
+    'South Korea', 'Republic of Korea', 'Korea',
+    'Sri Lanka', 'Syria', 'Syrian Arab Republic',
+    'Taiwan', 'Tajikistan', 'Thailand',
+    'Timor-Leste', 'East Timor',
+    'Turkmenistan',
+    'United Arab Emirates', 'UAE',
+    'Uzbekistan', 'Vietnam', 'Viet Nam',
+    'Yemen',
+    // Oceania
+    'Australia', 'New Zealand',
+    'Fiji', 'Kiribati', 'Marshall Islands', 'Federated States of Micronesia',
+    'Micronesia', 'Nauru', 'Palau', 'Papua New Guinea', 'Samoa',
+    'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu'
+  ].forEach(c => t[c] = 'Asia-Pacific');
+
+  return t;
+})();
+
+const COVERAGE_REGIONS = ['Global', 'Americas', 'Europe', 'Asia-Pacific', 'Africa'];
+const BASE_REGIONS = ['Americas', 'Europe', 'Asia-Pacific', 'Africa'];
+Object.assign(window, { COVERAGE_REGIONS, BASE_REGIONS });
+
+// Resolve a country (origin) to one of the four base regions.
+// 1. Try the static COUNTRY_TO_REGION table.
+// 2. If not found, scan the data: find all compacts whose originCountry matches
+//    and look at their per-region coverage flags. If exactly one of the four
+//    base regions is marked yes across those rows, return it. Else null.
+const _regionResolveCache = new Map();
+function resolveCountryRegion(country, compactRows) {
+  if (!country || country === 'All') return null;
+  if (COUNTRY_TO_REGION[country]) return COUNTRY_TO_REGION[country];
+  if (!Array.isArray(compactRows) || compactRows.length === 0) return null;
+  if (_regionResolveCache.has(country)) return _regionResolveCache.get(country);
+  const hits = new Set();
+  for (const row of compactRows) {
+    if (!row || row.originCountry !== country) continue;
+    const cov = Array.isArray(row.coverageRegions) ? row.coverageRegions : [];
+    for (const r of BASE_REGIONS) {
+      if (cov.includes(r)) hits.add(r);
+    }
+  }
+  const result = hits.size === 1 ? Array.from(hits)[0] : null;
+  _regionResolveCache.set(country, result);
+  return result;
+}
+Object.assign(window, { COUNTRY_TO_REGION, resolveCountryRegion });
+
+function aggregate(compacts, filters) {
+  const proponentSet = filters.proponentTypes && filters.proponentTypes.length
+    ? new Set(filters.proponentTypes) : null;
+  const regionSet = filters.coverageRegions && filters.coverageRegions.length
+    ? new Set(filters.coverageRegions) : null;
+  const wantsGlobal = regionSet ? regionSet.has('Global') : false;
+  const originFilter = filters.originCountry && filters.originCountry !== 'All'
+    ? filters.originCountry : null;
+
+  const filtered = compacts.filter(c => {
+    if (originFilter && c.originCountry !== originFilter) return false;
+    if (proponentSet) {
+      let hit = false;
+      for (let i = 0; i < c.proponentTypes.length; i++) {
+        if (proponentSet.has(c.proponentTypes[i])) { hit = true; break; }
+      }
+      if (!hit) return false;
+    }
+    if (regionSet) {
+      if (wantsGlobal && c._isGlobal) {
+        // matches via Global
+      } else {
+        let hit = false;
+        for (let i = 0; i < c.coverageRegions.length; i++) {
+          if (regionSet.has(c.coverageRegions[i])) { hit = true; break; }
+        }
+        if (!hit) return false;
+      }
+    }
+    return true;
+  });
+
+  // Step 2: aggregate metrics, filtering each metric by its per-compact target year
+  const targetYearCutoff = filters.targetYear || 9999;
+  const totals = {};
+  METRICS.forEach(m => { totals[m.id] = 0; });
+
+  filtered.forEach(c => {
+    METRICS.forEach(m => {
+      const metricData = c.metrics[m.id];
+      if (!metricData) return;
+      const myTargetYear = metricData.targetYear;
+      // Include metric value only if its target year <= slider value, or if no target year is set
+      if (!myTargetYear || myTargetYear <= targetYearCutoff) {
+        totals[m.id] += metricData.value || 0;
+      }
+    });
+  });
+
+  return { count: filtered.length, totals, filtered };
+}
+
+function formatValue(v, format) {
+  if (v == null || isNaN(v)) return '\u2013';
+  if (v === 0) return '0';
+  if (format === 'currency') {
+    if (v >= 1e12) return `$${(v / 1e12).toFixed(1)}T`;
+    if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+    if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+    if (v >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
+    return `$${v.toFixed(0)}`;
+  }
+  if (format === 'decimal') {
+    if (v >= 1000) return v.toFixed(0);
+    if (v >= 100) return v.toFixed(1);
+    return v.toFixed(2);
+  }
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  return Math.round(v).toLocaleString('en-US');
+}
+
+function useAnimatedNumber(target, duration = 600) {
+  const [value, setValue] = React.useState(target);
+  const fromRef = React.useRef(target);
+  const startRef = React.useRef(0);
+  const rafRef = React.useRef(0);
+  React.useEffect(() => {
+    cancelAnimationFrame(rafRef.current);
+    if (Math.abs(target - value) < 0.01) {
+      if (value !== target) setValue(target);
+      return;
+    }
+    fromRef.current = value;
+    startRef.current = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - startRef.current) / duration);
+      const u = 1 - t;
+      const eased = 1 - u * u * u;
+      const next = fromRef.current + (target - fromRef.current) * eased;
+      setValue(next);
+      if (t < 1) rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [target]);
+  return value;
+}
+
+
+Object.assign(window, { METRICS, aggregate, formatValue, useAnimatedNumber });
+
+// ═══════════════════════════════════════════════════════════
+// WORLD MAP
+// ═══════════════════════════════════════════════════════════
+
+// Shared WorldMap component — uses the real simple-world-map SVG fetched
+// from CDN at runtime. Paths have ISO 3166-1 alpha-2 codes as ids.
+
+const SVG_CDN_URL = 'https://cdn.jsdelivr.net/gh/flekschas/simple-world-map@master/world-map.svg';
+
+// Country name (as in CSV) → ISO 3166-1 alpha-2
+const COUNTRY_TO_ISO = {
+  'Australia': 'AU', 'Belgium': 'BE', 'Bolivia': 'BO',
+  'Brazil': 'BR', 'Chile': 'CL', 'Colombia': 'CO',
+  'Denmark': 'DK', 'Ethiopia': 'ET', 'France': 'FR',
+  'Germany': 'DE', 'Honduras': 'HN', 'Iceland': 'IS',
+  'India': 'IN', 'Indonesia': 'ID', 'Ireland': 'IE',
+  'Italy': 'IT', 'Japan': 'JP', 'Kenya': 'KE',
+  'Lebanon': 'LB', 'Madagascar': 'MG', 'Malawi': 'MW',
+  'Mauritius': 'MU', 'Nauru': 'NR', 'Nepal': 'NP',
+  'Netherlands': 'NL', 'Nigeria': 'NG', 'Norway': 'NO',
+  'Panama': 'PA', 'Portugal': 'PT', 'Russia': 'RU',
+  'Rwanda': 'RW', 'Sierra Leone': 'SL', 'Spain': 'ES',
+  'Switzerland': 'CH', 'United Arab Emirates': 'AE',
+  'United Kingdom of Great Britain and Northern Ireland': 'GB',
+  'United States of America': 'US', 'Zambia': 'ZM',
+  'China': 'CN', 'Mexico': 'MX', 'Canada': 'CA',
+  'Argentina': 'AR', 'South Africa': 'ZA', 'Egypt': 'EG',
+  'Pakistan': 'PK', 'Bangladesh': 'BD', 'Vietnam': 'VN',
+  'Thailand': 'TH', 'Philippines': 'PH', 'Turkey': 'TR',
+  'Saudi Arabia': 'SA', 'Iran': 'IR', 'Iraq': 'IQ',
+  'Israel': 'IL', 'Jordan': 'JO', 'Morocco': 'MA',
+  'Algeria': 'DZ', 'Tunisia': 'TN', 'Libya': 'LY',
+  'Sudan': 'SD', 'Tanzania': 'TZ', 'Uganda': 'UG',
+  'Ghana': 'GH', 'Senegal': 'SN', 'Cameroon': 'CM',
+  'Angola': 'AO', 'Mozambique': 'MZ', 'Zimbabwe': 'ZW',
+  'Botswana': 'BW', 'Namibia': 'NA', 'Sweden': 'SE',
+  'Finland': 'FI', 'Poland': 'PL', 'Austria': 'AT',
+  'Greece': 'GR', 'Czech Republic': 'CZ', 'Hungary': 'HU',
+  'Romania': 'RO', 'Bulgaria': 'BG', 'Ukraine': 'UA',
+  'New Zealand': 'NZ', 'Malaysia': 'MY', 'Singapore': 'SG',
+  'South Korea': 'KR', 'Republic of Korea': 'KR',
+  'Korea, Republic of': 'KR', 'Democratic Republic of the Congo': 'CD',
+  'Congo': 'CG', 'Cote d\u2019Ivoire': 'CI', "Cote d'Ivoire": 'CI',
+  'Costa Rica': 'CR', 'Peru': 'PE', 'Ecuador': 'EC',
+  'Paraguay': 'PY', 'Uruguay': 'UY', 'Cuba': 'CU',
+  'Jamaica': 'JM', 'Dominican Republic': 'DO',
+  'United States': 'US', 'United Kingdom': 'GB', 'UAE': 'AE'
+};
+
+// ISO → UN region (for the 4 regions used by the dataset)
+const ISO_REGION = {
+  // Africa
+  DZ: 'Africa', AO: 'Africa', BJ: 'Africa', BW: 'Africa', BF: 'Africa',
+  BI: 'Africa', CM: 'Africa', CV: 'Africa', CF: 'Africa', TD: 'Africa',
+  KM: 'Africa', CG: 'Africa', CD: 'Africa', CI: 'Africa', DJ: 'Africa',
+  EG: 'Africa', GQ: 'Africa', ER: 'Africa', ET: 'Africa', GA: 'Africa',
+  GM: 'Africa', GH: 'Africa', GN: 'Africa', GW: 'Africa', KE: 'Africa',
+  LS: 'Africa', LR: 'Africa', LY: 'Africa', MG: 'Africa', MW: 'Africa',
+  ML: 'Africa', MR: 'Africa', MU: 'Africa', MA: 'Africa', MZ: 'Africa',
+  NA: 'Africa', NE: 'Africa', NG: 'Africa', RW: 'Africa', ST: 'Africa',
+  SN: 'Africa', SC: 'Africa', SL: 'Africa', SO: 'Africa', ZA: 'Africa',
+  SS: 'Africa', SD: 'Africa', SZ: 'Africa', TZ: 'Africa', TG: 'Africa',
+  TN: 'Africa', UG: 'Africa', EH: 'Africa', ZM: 'Africa', ZW: 'Africa',
+  // Americas
+  AG: 'Americas', AR: 'Americas', BS: 'Americas', BB: 'Americas',
+  BZ: 'Americas', BO: 'Americas', BR: 'Americas', CA: 'Americas',
+  CL: 'Americas', CO: 'Americas', CR: 'Americas', CU: 'Americas',
+  DM: 'Americas', DO: 'Americas', EC: 'Americas', SV: 'Americas',
+  GD: 'Americas', GT: 'Americas', GY: 'Americas', HT: 'Americas',
+  HN: 'Americas', JM: 'Americas', MX: 'Americas', NI: 'Americas',
+  PA: 'Americas', PY: 'Americas', PE: 'Americas', KN: 'Americas',
+  LC: 'Americas', VC: 'Americas', SR: 'Americas', TT: 'Americas',
+  US: 'Americas', UY: 'Americas', VE: 'Americas', PR: 'Americas',
+  GF: 'Americas',
+  // Asia-Pacific (Asia + Oceania + Middle East)
+  AF: 'Asia-Pacific', AU: 'Asia-Pacific', BH: 'Asia-Pacific',
+  BD: 'Asia-Pacific', BT: 'Asia-Pacific', BN: 'Asia-Pacific',
+  KH: 'Asia-Pacific', CN: 'Asia-Pacific', FJ: 'Asia-Pacific',
+  IN: 'Asia-Pacific', ID: 'Asia-Pacific', IR: 'Asia-Pacific',
+  IQ: 'Asia-Pacific', IL: 'Asia-Pacific', JP: 'Asia-Pacific',
+  JO: 'Asia-Pacific', KZ: 'Asia-Pacific', KP: 'Asia-Pacific',
+  KR: 'Asia-Pacific', KW: 'Asia-Pacific', KG: 'Asia-Pacific',
+  LA: 'Asia-Pacific', LB: 'Asia-Pacific', MY: 'Asia-Pacific',
+  MV: 'Asia-Pacific', MH: 'Asia-Pacific', FM: 'Asia-Pacific',
+  MN: 'Asia-Pacific', MM: 'Asia-Pacific', NR: 'Asia-Pacific',
+  NP: 'Asia-Pacific', NZ: 'Asia-Pacific', OM: 'Asia-Pacific',
+  PK: 'Asia-Pacific', PW: 'Asia-Pacific', PS: 'Asia-Pacific',
+  PG: 'Asia-Pacific', PH: 'Asia-Pacific', QA: 'Asia-Pacific',
+  WS: 'Asia-Pacific', SA: 'Asia-Pacific', SG: 'Asia-Pacific',
+  SB: 'Asia-Pacific', LK: 'Asia-Pacific', SY: 'Asia-Pacific',
+  TJ: 'Asia-Pacific', TH: 'Asia-Pacific', TL: 'Asia-Pacific',
+  TO: 'Asia-Pacific', TR: 'Asia-Pacific', TM: 'Asia-Pacific',
+  TV: 'Asia-Pacific', AE: 'Asia-Pacific', UZ: 'Asia-Pacific',
+  VU: 'Asia-Pacific', VN: 'Asia-Pacific', YE: 'Asia-Pacific',
+  TW: 'Asia-Pacific', HK: 'Asia-Pacific',
+  // Europe
+  AL: 'Europe', AD: 'Europe', AM: 'Europe', AT: 'Europe',
+  AZ: 'Europe', BY: 'Europe', BE: 'Europe', BA: 'Europe',
+  BG: 'Europe', HR: 'Europe', CY: 'Europe', CZ: 'Europe',
+  DK: 'Europe', EE: 'Europe', FI: 'Europe', FR: 'Europe',
+  GE: 'Europe', DE: 'Europe', GR: 'Europe', HU: 'Europe',
+  IS: 'Europe', IE: 'Europe', IT: 'Europe', XK: 'Europe',
+  LV: 'Europe', LI: 'Europe', LT: 'Europe', LU: 'Europe',
+  MT: 'Europe', MD: 'Europe', MC: 'Europe', ME: 'Europe',
+  NL: 'Europe', MK: 'Europe', NO: 'Europe', PL: 'Europe',
+  PT: 'Europe', RO: 'Europe', RU: 'Europe', SM: 'Europe',
+  RS: 'Europe', SK: 'Europe', SI: 'Europe', ES: 'Europe',
+  SE: 'Europe', CH: 'Europe', UA: 'Europe', GB: 'Europe',
+  VA: 'Europe', GL: 'Europe',
+  // Additional territories rendered by the SVG
+  FK: 'Americas',
+  NC: 'Asia-Pacific',
+  SC: 'Africa', ST: 'Africa'
+};
+
+const REGION_COLORS_DEFAULT = {
+  'Americas': '#e8b4a0',
+  'Europe': '#e6c98a',
+  'Africa': '#a8d5b8',
+  'Asia-Pacific': '#9ec9d4'
+};
+const REGION_COLORS_ACTIVE = {
+  'Americas': '#d97757',
+  'Europe': '#d4a017',
+  'Africa': '#3d8168',
+  'Asia-Pacific': '#2c7a93'
+};
+
+// Cache the parsed SVG paths globally so we only fetch once.
+let _svgCache = null;
+let _svgPromise = null;
+function loadWorldMapSVG() {
+  if (_svgCache) return Promise.resolve(_svgCache);
+  if (_svgPromise) return _svgPromise;
+  _svgPromise = fetch((window.__resources && window.__resources.worldMapSvg) || SVG_CDN_URL).
+  then((r) => r.text()).
+  then((text) => {
+    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+    const svg = doc.documentElement;
+    const viewBox = svg.getAttribute('viewBox') || '0 0 1000 500';
+    // Gather entries: each is { id, ds: [d, d, ...] }
+    // - <g id="xx"> with multiple <path>s (countries with islands: us, gb, ca, jp, fr, ...)
+    // - bare <path id="xx"> for single-shape countries (ae, af, al, ...)
+    const entries = [];
+    Array.from(svg.querySelectorAll('g[id]')).forEach((g) => {
+      const rawId = g.getAttribute('id') || '';
+      const id = rawId.toLowerCase();
+      const ds = Array.from(g.querySelectorAll('path')).map((p) => p.getAttribute('d')).filter(Boolean);
+      if (id && ds.length) entries.push({ id, isoUpper: rawId.toUpperCase(), ds });
+    });
+    Array.from(svg.querySelectorAll('path[id]')).forEach((p) => {
+      // Skip paths inside a g[id] (already covered)
+      if (p.parentElement && p.parentElement.tagName.toLowerCase() === 'g' && p.parentElement.getAttribute('id')) return;
+      const rawId = p.getAttribute('id') || '';
+      const id = rawId.toLowerCase();
+      const d = p.getAttribute('d') || '';
+      if (id && d) entries.push({ id, isoUpper: rawId.toUpperCase(), ds: [d] });
+    });
+    _svgCache = { viewBox, entries };
+    return _svgCache;
+  });
+  return _svgPromise;
+}
+
+function useWorldMapSVG() {
+  const [data, setData] = React.useState(_svgCache);
+  React.useEffect(() => {
+    if (!data) loadWorldMapSVG().then(setData).catch(() => {});
+  }, []);
+  return data;
+}
+
+// Approximate lat/lon for selected-country pin
+const COUNTRY_COORDS = {
+  'Australia': [-25, 135], 'Belgium': [50, 4], 'Bolivia': [-17, -65],
+  'Brazil': [-10, -52], 'Chile': [-30, -71], 'Colombia': [4, -73],
+  'Denmark': [56, 9], 'Ethiopia': [9, 40], 'France': [46, 2],
+  'Germany': [51, 10], 'Honduras': [15, -86], 'Iceland': [64, -19],
+  'India': [22, 78], 'Indonesia': [-2, 118], 'Ireland': [53, -8],
+  'Italy': [42, 12], 'Japan': [36, 138], 'Kenya': [0, 37],
+  'Lebanon': [33, 35], 'Madagascar': [-20, 47], 'Malawi': [-13, 34],
+  'Mauritius': [-20, 57], 'Nauru': [-0.5, 166], 'Nepal': [28, 84],
+  'Netherlands': [52, 5], 'Nigeria': [10, 8], 'Norway': [62, 10],
+  'Panama': [9, -80], 'Portugal': [39, -8], 'Russia': [60, 100],
+  'Rwanda': [-2, 30], 'Sierra Leone': [8, -11], 'Spain': [40, -4],
+  'Switzerland': [47, 8], 'United Arab Emirates': [24, 54],
+  'United Kingdom of Great Britain and Northern Ireland': [54, -2],
+  'United States of America': [38, -97], 'Zambia': [-13, 28]
+};
+
+const WorldMap = React.memo(function WorldMap({
+  activeRegions = [],
+  selectedCountry = 'All',
+  countriesInRegions = {},
+  onRegionClick,
+  theme = 'light'
+}) {
+  const data = useWorldMapSVG();
+  const isDark = theme === 'dark';
+  const mutedFill = isDark ? '#22324f' : '#e9ebf0';
+
+  const activeSet = React.useMemo(() => {
+    const s = new Set(activeRegions);
+    if (selectedCountry !== 'All') {
+      for (const region in countriesInRegions) {
+        const set = countriesInRegions[region];
+        if (set && set.has && set.has(selectedCountry)) s.add(region);
+      }
+    }
+    return s;
+  }, [activeRegions, selectedCountry, countriesInRegions]);
+
+  const anyActive = activeSet.size > 0 || selectedCountry !== 'All';
+
+  const presentISOs = React.useMemo(() => {
+    const s = new Set();
+    for (const region in countriesInRegions) {
+      const set = countriesInRegions[region];
+      if (!set || !set.forEach) continue;
+      set.forEach((country) => {
+        const iso = COUNTRY_TO_ISO[country];
+        if (iso) s.add(iso.toLowerCase());
+      });
+    }
+    return s;
+  }, [countriesInRegions]);
+
+  const handleClick = React.useCallback((region) => {
+    if (region && onRegionClick) onRegionClick(region);
+  }, [onRegionClick]);
+
+  if (!data) {
+    return (
+      <div style={{
+        width: '100%', height: '100%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: isDark ? '#6b7896' : '#aab0b8', fontSize: 11,
+        fontFamily: '"IBM Plex Mono", monospace'
+      }}>loading map…</div>);
+  }
+
+  return (
+    <svg viewBox={data.viewBox} style={{ width: '100%', height: '100%', display: 'block' }}>
+      {data.entries.map(({ id, isoUpper, ds }) => {
+        const region = ISO_REGION[isoUpper];
+
+        let fill;
+        if (!region) fill = mutedFill;
+        else if (!anyActive) fill = REGION_COLORS_DEFAULT[region];
+        else if (activeSet.has(region)) fill = REGION_COLORS_ACTIVE[region];
+        else fill = mutedFill;
+
+        return (
+          <g
+            key={id}
+            data-region={region || ''}
+            style={{ cursor: onRegionClick && region ? 'pointer' : 'default' }}
+            onClick={region ? () => handleClick(region) : undefined}>
+            {ds.map((d, i) =>
+              <path
+                key={i}
+                d={d}
+                fill={fill}
+                stroke={fill}
+                strokeWidth={1.5}
+                strokeLinejoin="round" />
+            )}
+          </g>);
+      })}
+    </svg>);
+});
+
+function countriesByRegionFromCompacts(compacts) {
+  const out = { 'Africa': new Set(), 'Americas': new Set(), 'Asia-Pacific': new Set(), 'Europe': new Set() };
+  compacts.forEach((c) => {
+    if (!out[c.region]) out[c.region] = new Set();
+    out[c.region].add(c.country);
+  });
+  return out;
+}
+
+Object.assign(window, { WorldMap, COUNTRY_COORDS, COUNTRY_TO_ISO, ISO_REGION, countriesByRegionFromCompacts });
+
+// ═══════════════════════════════════════════════════════════
+// BASE V1 (dependency for V3 → V6)
+// ═══════════════════════════════════════════════════════════
+
+// Variation 1 — "Embed" — sticky top filter bar + KPI grid
+// Target: feels native when embedded into the SE4All site.
+// UN navy header accent, gold for key numbers, lots of whitespace.
+
+const V1_T = {
+  navy: '#1a3a6e',
+  navyDark: '#0f2347',
+  gold: '#d4a017',
+  goldDeep: '#b8860b',
+  ink: '#1a1d24',
+  muted: '#6b7383',
+  mutedLight: '#9aa2b0',
+  border: '#e4e7ee',
+  borderSoft: '#eef0f4',
+  bg: '#ffffff',
+  bgSoft: '#f7f8fa',
+  bgAccent: '#fbf7ec'
+};
+
+function V1_FilterDropdown({ label, count, isOpen, onToggle, children }) {
+  const active = count > 0;
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 14px', borderRadius: 10,
+          border: `1px solid ${active ? V6_T.gold : V6_T.border}`,
+          background: active ? V6_T.gold : V6_T.bg,
+          color: active ? V6_T.navyDark : V6_T.ink,
+          fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          fontFamily: 'inherit',
+          transition: 'all 0.15s'
+        }}>
+        
+        <span>{label}</span>
+        {active &&
+        <span style={{
+          background: V6_T.gold, color: V6_T.navyDark,
+          fontSize: 10, fontWeight: 700,
+          padding: '1px 6px', borderRadius: 8, minWidth: 16, textAlign: 'center'
+        }}>{count}</span>
+        }
+        <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{isOpen ? '▲' : '▼'}</span>
+      </button>
+      {isOpen &&
+      <div style={{
+        position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 100,
+        background: V6_T.bg, border: `1px solid ${V6_T.border}`, borderRadius: 10,
+        minWidth: 280, maxHeight: 340, overflowY: 'auto',
+        boxShadow: '0 10px 30px rgba(15,35,71,0.12)'
+      }}>
+          {children}
+        </div>
+      }
+    </div>);
+
+}
+
+function V1_CheckboxList({ options, selected, onToggle }) {
+  return (
+    <div>
+      {options.map((opt) => {
+        const checked = selected.includes(opt);
+        return (
+          <label key={opt} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 14px', cursor: 'pointer',
+            fontSize: 13, color: V6_T.ink,
+            background: checked ? V6_T.bgAccent : 'transparent',
+            borderBottom: `1px solid ${V6_T.borderSoft}`
+          }}>
+            <span style={{
+              width: 14, height: 14, border: `1.5px solid ${checked ? V6_T.gold : V6_T.mutedLight}`,
+              borderRadius: 4, background: checked ? V6_T.gold : V6_T.bg,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              {checked && <span style={{ color: '#fff', fontSize: 10, lineHeight: 1 }}>✓</span>}
+            </span>
+            <input
+              type="checkbox" checked={checked} onChange={() => onToggle(opt)}
+              style={{ display: 'none' }} />
+            
+            <span>{opt}</span>
+          </label>);
+
+      })}
+    </div>);
+
+}
+
+function V1_SelectDropdown({ label, value, options, isOpen, onToggle, onChange }) {
+  const active = value !== 'All';
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 14px', borderRadius: 10,
+          border: `1px solid ${active ? V6_T.gold : V6_T.border}`,
+          background: active ? V6_T.gold : V6_T.bg,
+          color: active ? V6_T.navyDark : V6_T.ink,
+          fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          fontFamily: 'inherit'
+        }}>
+        
+        <span>{label}:</span>
+        <span>{value}</span>
+        <span style={{ fontSize: 10, opacity: 0.7 }}>{isOpen ? '▲' : '▼'}</span>
+      </button>
+      {isOpen &&
+      <div style={{
+        position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 100,
+        background: V6_T.bg, border: `1px solid ${V6_T.border}`, borderRadius: 10,
+        minWidth: 240, maxHeight: 340, overflowY: 'auto',
+        boxShadow: '0 10px 30px rgba(15,35,71,0.12)'
+      }}>
+          {options.map((opt) =>
+        <div
+          key={opt}
+          onClick={() => onChange(opt)}
+          style={{
+            padding: '10px 14px', cursor: 'pointer',
+            fontSize: 13, color: V6_T.ink,
+            background: opt === value ? V6_T.bgAccent : 'transparent',
+            borderBottom: `1px solid ${V6_T.borderSoft}`
+          }}>
+          {opt}</div>
+        )}
+        </div>
+      }
+    </div>);
+
+}
+
+// ═══════════════════════════════════════════════════════════
+// V6 SHARED DEPENDENCIES (icons, theme aliases)
+// ═══════════════════════════════════════════════════════════
+
+const V3_T = V1_T;
+
+// Inline SVG icons encoded as data URIs and rendered via <img>. One per metric id.
+const V3_ICONS = (() => {
+  const enc = (svg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  const wrap = (inner, color = '#0f2347') =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  return {
+    finance_committed: enc(wrap(`<circle cx="24" cy="24" r="16"/><path d="M24 15v18"/><path d="M28.5 19.5c-.8-1.2-2.4-2-4.5-2s-4 1-4 2.8c0 1.8 1.8 2.5 4 3.2 2.2.7 4 1.4 4 3.2 0 1.8-1.8 2.8-4 2.8s-3.7-.8-4.5-2"/>`)),
+    electricity: enc(wrap(`<path d="M20 8v8M28 8v8"/><rect x="16" y="16" width="16" height="8" rx="2"/><path d="M22 24v4h4v-4"/><path d="M24 28v8"/>`)),
+    clean_cooking: enc(wrap(`<path d="M24 8c-3 4 2 6 0 11"/><path d="M30 12c-2 3 1 4 0 7"/><path d="M18 12c-2 3 1 4 0 7"/><rect x="10" y="22" width="28" height="6" rx="1"/><path d="M14 28v10M34 28v10M14 38h20"/>`)),
+    renewable_capacity: enc(wrap(`<circle cx="24" cy="20" r="3"/><path d="M24 17V7M24 23l-9 5M24 23l9 5M24 28v14M19 42h10"/>`)),
+    energy_savings: enc(wrap(`<path d="M26 6L12 28h10l-2 14 14-22H24z"/>`)),
+    green_jobs: enc(wrap(`<rect x="8" y="18" width="32" height="22" rx="3"/><path d="M18 18v-4a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v4"/><path d="M8 26h32"/>`)),
+    jobs_training: enc(wrap(`<path d="M6 18l18-8 18 8-18 8z"/><path d="M14 22v8c0 3 4 6 10 6s10-3 10-6v-8"/><path d="M40 18v10"/>`)),
+    clean_vehicles: enc(wrap(`<rect x="12" y="8" width="24" height="28" rx="5"/><rect x="16" y="12" width="16" height="12" rx="2"/><circle cx="18" cy="30" r="3"/><circle cx="30" cy="30" r="3"/><path d="M14 36l-4 6"/><path d="M34 36l4 6"/><path d="M8 42h32"/>`)),
+    charging_infra: enc(wrap(`<rect x="14" y="6" width="16" height="32" rx="2"/><path d="M14 14h16"/><path d="M22 20l-3 6h6l-3 6"/><path d="M34 18h4v6c0 2-2 4-4 4"/>`)),
+    ghg_averted: enc(wrap(`<path d="M16 22c-4 0-7-3-7-7s3-7 7-7c1-4 5-6 9-5s7 4 7 8c4 0 7 3 7 7s-3 7-7 7H16z"/><path d="M24 26v14"/><path d="M19 35l5 5 5-5"/>`)),
+    partnerships: enc(wrap(`<circle cx="18" cy="20" r="6"/><circle cx="30" cy="20" r="6"/><path d="M10 38c0-5 3-9 8-9s8 4 8 9"/><path d="M22 38c0-5 3-9 8-9s8 4 8 9"/>`)),
+    netzero_pledges: enc(wrap(`<circle cx="24" cy="24" r="16"/><circle cx="24" cy="24" r="10"/><circle cx="24" cy="24" r="4"/><path d="M24 8v4M24 36v4M8 24h4M36 24h4"/>`))
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════
+// BASE V4 (dependency for V7)
+// ═══════════════════════════════════════════════════════════
+
+// Variation 4 — clone of V2 (dark editorial mosaic) with symbolic PNG-style icons.
+
+const V4_ICONS = (() => {
+  const enc = (svg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  const wrap = (inner, color = '#f5c542') =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  return {
+    finance_committed: enc(wrap(`<circle cx="24" cy="24" r="16"/><path d="M24 15v18"/><path d="M28.5 19.5c-.8-1.2-2.4-2-4.5-2s-4 1-4 2.8c0 1.8 1.8 2.5 4 3.2 2.2.7 4 1.4 4 3.2 0 1.8-1.8 2.8-4 2.8s-3.7-.8-4.5-2"/>`)),
+    electricity: enc(wrap(`<path d="M20 8v8M28 8v8"/><rect x="16" y="16" width="16" height="8" rx="2"/><path d="M22 24v4h4v-4"/><path d="M24 28v8"/>`)),
+    clean_cooking: enc(wrap(`<path d="M24 8c-3 4 2 6 0 11"/><path d="M30 12c-2 3 1 4 0 7"/><path d="M18 12c-2 3 1 4 0 7"/><rect x="10" y="22" width="28" height="6" rx="1"/><path d="M14 28v10M34 28v10M14 38h20"/>`)),
+    renewable_capacity: enc(wrap(`<circle cx="24" cy="20" r="3"/><path d="M24 17V7M24 23l-9 5M24 23l9 5M24 28v14M19 42h10"/>`)),
+    energy_savings: enc(wrap(`<path d="M26 6L12 28h10l-2 14 14-22H24z"/>`)),
+    green_jobs: enc(wrap(`<rect x="8" y="18" width="32" height="22" rx="3"/><path d="M18 18v-4a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v4"/><path d="M8 26h32"/>`)),
+    jobs_training: enc(wrap(`<path d="M6 18l18-8 18 8-18 8z"/><path d="M14 22v8c0 3 4 6 10 6s10-3 10-6v-8"/><path d="M40 18v10"/>`)),
+    clean_vehicles: enc(wrap(`<rect x="12" y="8" width="24" height="28" rx="5"/><rect x="16" y="12" width="16" height="12" rx="2"/><circle cx="18" cy="30" r="3"/><circle cx="30" cy="30" r="3"/><path d="M14 36l-4 6"/><path d="M34 36l4 6"/><path d="M8 42h32"/>`)),
+    charging_infra: enc(wrap(`<rect x="14" y="6" width="16" height="32" rx="2"/><path d="M14 14h16"/><path d="M22 20l-3 6h6l-3 6"/><path d="M34 18h4v6c0 2-2 4-4 4"/>`)),
+    ghg_averted: enc(wrap(`<path d="M16 22c-4 0-7-3-7-7s3-7 7-7c1-4 5-6 9-5s7 4 7 8c4 0 7 3 7 7s-3 7-7 7H16z"/><path d="M24 26v14"/><path d="M19 35l5 5 5-5"/>`)),
+    partnerships: enc(wrap(`<circle cx="18" cy="20" r="6"/><circle cx="30" cy="20" r="6"/><path d="M10 38c0-5 3-9 8-9s8 4 8 9"/><path d="M22 38c0-5 3-9 8-9s8 4 8 9"/>`)),
+    netzero_pledges: enc(wrap(`<circle cx="24" cy="24" r="16"/><circle cx="24" cy="24" r="10"/><circle cx="24" cy="24" r="4"/><path d="M24 8v4M24 36v4M8 24h4M36 24h4"/>`))
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD V1 (V6 — Light, SE4All branding)
+// ═══════════════════════════════════════════════════════════
+
+// V6 — clone of V3 (light embed + icons) with SE4All site typography:
+//   • Oswald (heavy condensed) for headings, KPI numbers, section labels
+//   • Open Sans for body
+//   • Orange (#e89923) labels — matches the site's section-header color
+
+const V6_LIGHT = {
+  ...V3_T,
+  gold: '#e89923',
+  goldSoft: '#f3b04a',
+  display: '"Oswald", "Helvetica Neue", Arial, sans-serif',
+  sans: '"Open Sans", -apple-system, "Helvetica Neue", Arial, sans-serif',
+};
+
+const V6_DARK = {
+  navy: '#8ab4f8',
+  navyDark: '#ffffff',
+  gold: '#f5a800',
+  goldSoft: '#f9c440',
+  goldDeep: '#d4880b',
+  ink: '#ffffff',
+  muted: '#8899aa',
+  mutedLight: '#667a8c',
+  border: '#1e3550',
+  borderSoft: '#162a40',
+  bg: '#112233',
+  bgSoft: '#0d1b2a',
+  bgAccent: '#1a2d42',
+  display: '"Oswald", "Helvetica Neue", Arial, sans-serif',
+  sans: '"Open Sans", -apple-system, "Helvetica Neue", Arial, sans-serif',
+};
+
+const V6_T = { ...V6_LIGHT };
+
+function setV6Theme(dark) {
+  Object.assign(V6_T, dark ? V6_DARK : V6_LIGHT);
+  window.__v6Dark = !!dark;
+}
+
+function V6_Icon({ id, size = 36 }) {
+  const src = window.__v6Dark ? V4_ICONS[id] : V3_ICONS[id];
+  if (!src) return null;
+  return <img src={src} alt="" width={size} height={size} style={{ display: 'block', opacity: 0.85 }} />;
+}
+
+const V6_HeroKPI = React.memo(function V6_HeroKPI({ metric, value, count, compact }) {
+  const animated = useAnimatedNumber(value);
+  const display = formatValue(animated, metric.format);
+  return (
+    <div style={{
+      background: V6_T.bg, padding: compact ? '14px 22px' : '28px 28px 26px',
+      position: 'relative',
+      display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16,
+    }}>
+      <div style={{
+        flexShrink: 0, width: 44, height: 44, borderRadius: 10,
+        background: 'rgba(232,153,35,0.12)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <V6_Icon id={metric.id} size={28} />
+      </div>
+      <div style={{ flex: '0 0 130px' }}>
+        <div style={{
+          fontFamily: V6_T.display,
+          fontSize: 12, fontWeight: 700, letterSpacing: 1.2,
+          color: V6_T.gold, marginBottom: 4,
+        }}>{metric.sdg || 'Finance'}</div>
+        <div style={{
+          fontFamily: V6_T.display,
+          fontSize: 30, fontWeight: 600, letterSpacing: -0.3, lineHeight: 1,
+          color: V6_T.navyDark, fontVariantNumeric: 'tabular-nums',
+        }}>{display}</div>
+        <div style={{ fontFamily: V6_T.sans, fontSize: 11, color: V6_T.muted, marginTop: 4 }}>{metric.unit}</div>
+      </div>
+      <div style={{ fontFamily: V6_T.sans, fontSize: 13, color: V6_T.ink, lineHeight: 1.4, flex: 1 }}>
+        {metric.label}
+      </div>
+    </div>
+  );
+});
+
+const V6_KPI = React.memo(function V6_KPI({ metric, value }) {
+  const animated = useAnimatedNumber(value);
+  const display = formatValue(animated, metric.format);
+  return (
+    <div style={{ background: V6_T.bg, padding: '20px 22px 22px', minHeight: 148 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{
+          fontFamily: V6_T.display,
+          fontSize: 12, fontWeight: 700, letterSpacing: 1.2,
+          color: V6_T.gold,
+        }}>{metric.sdg || '—'}</div>
+        <div style={{
+          width: 44, height: 44, borderRadius: 10,
+          background: 'rgba(232,153,35,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <V6_Icon id={metric.id} size={28} />
+        </div>
+      </div>
+      <div style={{
+        fontFamily: V6_T.display,
+        fontSize: 30, fontWeight: 600, letterSpacing: -0.3, lineHeight: 1,
+        color: V6_T.ink, fontVariantNumeric: 'tabular-nums',
+      }}>{display}</div>
+      <div style={{ fontFamily: V6_T.sans, fontSize: 11, color: V6_T.muted, marginTop: 6 }}>{metric.unit}</div>
+      <div style={{ fontFamily: V6_T.sans, fontSize: 12, color: V6_T.ink, marginTop: 14, lineHeight: 1.4 }}>{metric.label}</div>
+    </div>
+  );
+});
+
+function V6_Dashboard() {
+  const [filters, setFilters] = React.useState({
+    proponentTypes: [], originCountry: 'All', coverageRegions: [], targetYear: 9999,
+  });
+  const [expandedFilter, setExpandedFilter] = React.useState(null);
+  const agg = React.useMemo(() => aggregate(COMPACTS, filters), [filters]);
+  const toggleArr = React.useCallback((key, v) => {
+    setFilters(f => ({
+      ...f, [key]: f[key].includes(v) ? f[key].filter(x => x !== v) : [...f[key], v],
+    }));
+  }, []);
+  const handleRegionClick = React.useCallback((r) => {
+    setFilters(f => ({
+      ...f,
+      coverageRegions: f.coverageRegions.includes(r)
+        ? f.coverageRegions.filter(x => x !== r)
+        : [...f.coverageRegions, r],
+    }));
+  }, []);
+
+  const mapActiveRegions = React.useMemo(() => {
+    const fromCountry = resolveCountryRegion(filters.originCountry, COMPACTS);
+    if (!fromCountry) return filters.coverageRegions;
+    if (filters.coverageRegions.includes(fromCountry)) return filters.coverageRegions;
+    return [...filters.coverageRegions, fromCountry];
+  }, [filters.originCountry, filters.coverageRegions]);
+
+  const activeFilterCount =
+    filters.proponentTypes.length + (filters.originCountry !== 'All' ? 1 : 0) + filters.coverageRegions.length + (filters.targetYear < 9999 ? 1 : 0);
+  const clearAll = () => setFilters({ proponentTypes: [], originCountry: 'All', coverageRegions: [], targetYear: 9999 });
+
+  return (
+    <div style={{
+      fontFamily: V6_T.sans,
+      color: V6_T.ink, background: V6_T.bg,
+      width: '100%', height: '100%', overflow: 'auto',
+    }}>
+      <div style={{ borderBottom: `1px solid ${V6_T.border}`, background: V6_T.bg, padding: '28px 40px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 22 }}>
+          <div>
+            <h1 style={{
+              margin: 0, fontFamily: V6_T.display,
+              fontSize: 36, fontWeight: 700, letterSpacing: -0.2,
+              color: V6_T.gold,
+            }}>Energy Compacts Metrics Dashboard</h1>
+            <div style={{ fontFamily: V6_T.sans, fontSize: 13, color: V6_T.muted, marginTop: 6 }}>
+              Aggregated commitments from {agg.count.toLocaleString()} energy compact{agg.count !== 1 ? 's' : ''}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: V6_T.sans, fontSize: 12, color: V6_T.muted }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#23a56a', display: 'inline-block' }}></span>
+            Updated {window.__dataDate || '—'}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingBottom: 18 }}>
+          <V1_FilterDropdown label="Proponent Type" count={filters.proponentTypes.length}
+            isOpen={expandedFilter === 'proponent'}
+            onToggle={() => setExpandedFilter(e => e === 'proponent' ? null : 'proponent')}>
+            <V1_CheckboxList options={PROPONENT_TYPES} selected={filters.proponentTypes}
+              onToggle={v => toggleArr('proponentTypes', v)} />
+          </V1_FilterDropdown>
+          <V1_FilterDropdown label="Coverage Region" count={filters.coverageRegions.length}
+            isOpen={expandedFilter === 'region'}
+            onToggle={() => setExpandedFilter(e => e === 'region' ? null : 'region')}>
+            <V1_CheckboxList options={COVERAGE_REGIONS} selected={filters.coverageRegions}
+              onToggle={v => toggleArr('coverageRegions', v)} />
+          </V1_FilterDropdown>
+          <V1_SelectDropdown label="Origin Country"
+            value={filters.originCountry}
+            options={['All', ...ORIGIN_COUNTRIES]}
+            isOpen={expandedFilter === 'country'}
+            onToggle={() => setExpandedFilter(e => e === 'country' ? null : 'country')}
+            onChange={(v) => { setFilters(f => ({ ...f, originCountry: v })); setExpandedFilter(null); }} />
+          <V1_SelectDropdown label="Target Year"
+            value={filters.targetYear >= 9999 ? 'All' : '\u2264 ' + filters.targetYear}
+            options={['All', '\u2264 2030', '\u2264 2040', '\u2264 2050', '\u2264 2060']}
+            isOpen={expandedFilter === 'year'}
+            onToggle={() => setExpandedFilter(e => e === 'year' ? null : 'year')}
+            onChange={(v) => { setFilters(f => ({ ...f, targetYear: v === 'All' ? 9999 : Number(v.replace('\u2264 ', '')) })); setExpandedFilter(null); }} />
+{activeFilterCount > 0 && (
+            <button onClick={clearAll} style={{
+              marginLeft: 6, background: 'transparent', border: 'none',
+              fontSize: 12, color: V6_T.muted, cursor: 'pointer',
+              padding: '8px 10px', fontWeight: 500, fontFamily: V6_T.sans,
+            }}>Clear all ({activeFilterCount})</button>
+          )}
+          <div style={{ flex: 1 }}></div>
+          <div style={{
+            fontFamily: V6_T.display,
+            fontSize: 11, fontWeight: 600, color: V6_T.gold, letterSpacing: 1.2,
+          }}>{agg.count} Compacts Matched</div>
+        </div>
+      </div>
+
+      <div style={{ padding: '28px 40px 0' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 24, marginBottom: 28, alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+              <div style={{ fontFamily: V6_T.display, fontSize: 16, fontWeight: 700, letterSpacing: 1.4, color: V6_T.gold }}>Geographic Distribution</div>
+              <div style={{ flex: 1, height: 1, background: V6_T.border }}></div>
+            </div>
+            <div style={{
+              background: V6_T.bgSoft, border: `1px solid ${V6_T.border}`,
+              borderRadius: 12, padding: '16px 20px', flex: 1,
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}>
+              <div style={{ fontFamily: V6_T.sans, fontSize: 11, color: V6_T.mutedLight, textAlign: 'left' }}>Click a region to filter</div>
+              <div style={{ flex: 1 }}>
+                <WorldMap activeRegions={mapActiveRegions} onRegionClick={handleRegionClick} />
+              </div>
+              <div style={{ display: 'flex', gap: 14, fontFamily: V6_T.sans, fontSize: 11, color: V6_T.muted, flexWrap: 'wrap' }}>
+                {['Americas', 'Europe', 'Africa', 'Asia-Pacific'].map(r => (
+                  <span key={r} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 4,
+                      background: { 'Americas': '#d97757', 'Europe': '#d4a017', 'Africa': '#3d8168', 'Asia-Pacific': '#2c7a93' }[r] }}></span>
+                    {r}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+              <div style={{ fontFamily: V6_T.display, fontSize: 16, fontWeight: 700, letterSpacing: 1.4, color: V6_T.gold }}>SDG 7 Metrics</div>
+              <div style={{ flex: 1, height: 1, background: V6_T.border }}></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1, flex: 1,
+              background: V6_T.border, border: `1px solid ${V6_T.border}`, alignContent: 'stretch', borderRadius: 12, overflow: 'hidden' }}>
+              {METRICS.filter(m => m.hero).map(m => (
+                <V6_HeroKPI key={m.id} metric={m} value={agg.totals[m.id]} count={agg.count} compact />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 40px 48px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+          <div style={{
+            fontFamily: V6_T.display,
+            fontSize: 16, fontWeight: 700, letterSpacing: 1.4,
+            color: V6_T.gold,
+          }}>Other Metrics</div>
+          <div style={{ flex: 1, height: 1, background: V6_T.border }}></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1,
+          background: V6_T.border, border: `1px solid ${V6_T.border}`, borderRadius: 12, overflow: 'hidden' }}>
+          {METRICS.filter(m => !m.hero).map(m => (
+            <V6_KPI key={m.id} metric={m} value={agg.totals[m.id]} />
+          ))}
+        </div>
+        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${V6_T.borderSoft}`,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          fontFamily: V6_T.sans, fontSize: 11, color: V6_T.mutedLight }}>
+          <div>Source: UN Energy Compacts Registry · Self-reported commitments</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { V6_Dashboard });
+
+// ═══════════════════════════════════════════════════════════
+// DATE HELPER
+// ═══════════════════════════════════════════════════════════
+
+function formatDateForDisplay(isoDate) {
+  if (!isoDate) return '';
+  const d = new Date(isoDate + 'T00:00:00');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// UPLOAD SCREEN
+// ═══════════════════════════════════════════════════════════
+
+function UploadScreen({ onDataLoaded }) {
+  const [dragOver, setDragOver] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const [parsing, setParsing] = React.useState(false);
+  const [dataDate, setDataDate] = React.useState('');
+  const [pendingParsed, setPendingParsed] = React.useState(null);
+  const fileRef = React.useRef(null);
+
+  const handleFile = (file) => {
+    if (!file) return;
+    setError(null); setParsing(true);
+    const isExcel = file.name.match(/\.xlsx?$/i);
+    if (isExcel) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+          const parsed = parseCSVData(csv);
+          if (parsed.rowCount === 0) { setError('No valid data rows found.'); setParsing(false); return; }
+          setPendingParsed(parsed); setParsing(false);
+        } catch (err) { setError(`Error parsing Excel: ${err.message}`); setParsing(false); }
+      };
+      reader.onerror = () => { setError('Failed to read file'); setParsing(false); };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = parseCSVData(e.target.result);
+          if (parsed.rowCount === 0) { setError('No valid data rows found.'); setParsing(false); return; }
+          setPendingParsed(parsed); setParsing(false);
+        } catch (err) { setError(`Error parsing CSV: ${err.message}`); setParsing(false); }
+      };
+      reader.onerror = () => { setError('Failed to read file'); setParsing(false); };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!pendingParsed) return;
+    if (!dataDate) { setError('Please select the date when this data was last updated.'); return; }
+    loadParsedData(pendingParsed);
+    window.__dataDate = formatDateForDisplay(dataDate);
+    onDataLoaded(pendingParsed);
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault(); setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && (file.name.match(/\.csv$/i) || file.name.match(/\.xlsx?$/i) || file.type === 'text/csv')) handleFile(file);
+    else setError('Please upload a .csv or .xlsx file');
+  };
+
+  return (
+    <div style={{
+      width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#f7f8fa',
+      backgroundImage: 'radial-gradient(ellipse 900px 500px at 50% 30%, rgba(26,58,110,0.06), transparent)',
+    }}>
+      <div style={{ textAlign: 'center', maxWidth: 560, padding: '0 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.4, color: '#e89923', marginBottom: 12, fontFamily: '"DM Sans", sans-serif', textTransform: 'uppercase' }}>Energy Compacts Registry</div>
+        <h1 style={{ margin: '0 0 10px', fontSize: 32, fontWeight: 700, letterSpacing: -0.8, color: '#0f2347', lineHeight: 1.15, fontFamily: '"DM Sans", sans-serif' }}>Energy Compacts Metrics Dashboard</h1>
+        <p style={{ fontSize: 14, color: '#6b7383', lineHeight: 1.6, margin: '0 0 32px', fontFamily: '"DM Sans", sans-serif' }}>
+          Drop a CSV or Excel file with energy compact data to populate the dashboard.
+        </p>
+        <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}
+          onClick={() => !pendingParsed && fileRef.current?.click()}
+          style={{
+            border: `2px dashed ${pendingParsed ? '#bbf7d0' : dragOver ? '#1a3a6e' : '#d0d5de'}`,
+            borderRadius: 8, padding: pendingParsed ? '20px 32px' : '48px 32px',
+            cursor: pendingParsed ? 'default' : 'pointer',
+            background: pendingParsed ? '#f0fdf4' : dragOver ? 'rgba(26,58,110,0.04)' : '#fff',
+            transition: 'all 0.2s', textAlign: 'left',
+          }}>
+          {parsing ? (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: 36, height: 36, border: '3px solid #e4e7ee', borderTopColor: '#1a3a6e', borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ fontSize: 14, color: '#1a3a6e', fontWeight: 500 }}>Parsing data…</div>
+            </div>
+          ) : pendingParsed ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>✓</span>
+                <span style={{ fontSize: 14, color: '#166534', fontWeight: 600 }}>{pendingParsed.rowCount} compacts loaded</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#15803d', marginLeft: 32, marginBottom: 20 }}>
+                {pendingParsed.proponentTypes.length} proponent types
+              </div>
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1a1d24', marginBottom: 8 }}>When was this data last updated?</label>
+                <input type="date" value={dataDate} onChange={(e) => { setDataDate(e.target.value); setError(null); }}
+                  style={{ width: '100%', padding: '11px 14px', border: `1.5px solid ${error && !dataDate ? '#fca5a5' : '#d0d5de'}`, borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none', background: '#fff', color: dataDate ? '#1a1d24' : '#9aa2b0', cursor: 'pointer' }}
+                  onFocus={(e) => e.target.style.borderColor = '#1a3a6e'} onBlur={(e) => e.target.style.borderColor = error && !dataDate ? '#fca5a5' : '#d0d5de'} />
+              </div>
+              <button onClick={handleSubmit} style={{ width: '100%', padding: '13px 20px', background: '#1a3a6e', color: '#fff', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: '"Open Sans", sans-serif' }}
+                onMouseOver={(e) => e.target.style.background = '#0f2347'} onMouseOut={(e) => e.target.style.background = '#1a3a6e'}>Launch Dashboard →</button>
+              <button onClick={() => { setPendingParsed(null); setDataDate(''); setError(null); }} style={{ width: '100%', padding: '10px 20px', marginTop: 8, background: 'transparent', color: '#6b7383', border: '1px solid #e4e7ee', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Choose a different file</button>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.3 }}>📄</div>
+              <div style={{ fontSize: 15, color: '#1a1d24', fontWeight: 500, marginBottom: 6 }}>Drop your CSV or Excel file here</div>
+              <div style={{ fontSize: 13, color: '#9aa2b0' }}>or click to browse</div>
+            </div>
+          )}
+        </div>
+        <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={(e) => handleFile(e.target.files[0])} style={{ display: 'none' }} />
+        {error && (<div style={{ marginTop: 16, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, fontSize: 13, color: '#991b1b', textAlign: 'left' }}>{error}</div>)}
+        <div style={{ marginTop: 32, fontSize: 11, color: '#b0b5be', display: 'flex', gap: 20, justifyContent: 'center' }}>
+          <span>CSV & Excel</span><span>·</span><span>Auto-detects columns</span><span>·</span><span>All processing is local</span>
+        </div>
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOOLBAR
+// ═══════════════════════════════════════════════════════════
+
+function Toolbar({ variation, onChange, onReset, onExport }) {
+  return (
+    <div style={{
+      position: 'fixed', bottom: 16, right: 16, zIndex: 9999,
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: 'rgba(15,35,71,0.92)', borderRadius: 8,
+      padding: '8px 14px', backdropFilter: 'blur(8px)',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+    }}>
+      <button onClick={onReset} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 8px' }}>↩ New file</button>
+      <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.15)' }} />
+      {[['V1', 'V1: UN Energy Website Theme'], ['V2', 'V2: SEforAll Website Theme']].map(([v, label]) => (
+        <button key={v} onClick={() => onChange(v)} style={{
+          background: variation === v ? '#e89923' : 'transparent',
+          border: 'none', color: variation === v ? '#0f2347' : 'rgba(255,255,255,0.7)',
+          fontSize: 11, fontWeight: variation === v ? 700 : 500,
+          padding: '5px 12px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
+        }}>{label}</button>
+      ))}
+      <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.15)' }} />
+      <button onClick={onExport} style={{
+        background: '#23a56a', border: 'none', color: '#fff',
+        fontSize: 12, fontWeight: 600, padding: '5px 14px', borderRadius: 5,
+        cursor: 'pointer', fontFamily: 'inherit',
+      }}>⤓ Export HTML</button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════
+
+function exportDashboardHTML(variation) {
+  const scriptEl = document.querySelector('script[type="text/babel"]');
+  const fullCode = scriptEl.textContent;
+
+  const metricsStart = fullCode.indexOf('const METRICS =');
+  const csvStart = fullCode.indexOf('// CSV');
+  const coverageStart = fullCode.indexOf('const COVERAGE_REGIONS');
+  const mapComment = fullCode.indexOf('// WORLD MAP');
+  const mapCodeStart = fullCode.indexOf('const SVG_CDN_URL') !== -1 ? fullCode.indexOf('const SVG_CDN_URL') : fullCode.indexOf('// Shared WorldMap');
+  // V6 deps include V1_T, V1_FilterDropdown/CheckboxList/SelectDropdown and V3_ICONS/V4_ICONS.
+  // They start at the V1_T block (a comment line above) and end where the V6 dashboard begins.
+  const depsStart = fullCode.indexOf('const V1_T = {');
+  const v6HeaderStart = fullCode.indexOf('// DASHBOARD V1 (V6 — Light, SE4All branding)');
+  const v6BorderStart = fullCode.lastIndexOf('// ═══════════════════════════════════════════════════════════', v6HeaderStart);
+  const v6End = fullCode.indexOf('Object.assign(window, { V6_Dashboard });') + 'Object.assign(window, { V6_Dashboard });'.length;
+
+  const metricsBlock = fullCode.substring(metricsStart, csvStart).trim();
+  const aggBlock = fullCode.substring(coverageStart, mapComment).trim();
+  const mapBlock = fullCode.substring(mapCodeStart, depsStart).trim();
+  const depsBlock = fullCode.substring(depsStart, v6BorderStart).trim();
+  const varBlock = fullCode.substring(v6BorderStart, v6End).trim();
+
+  let dashComponent, bgColor, mountExtra;
+  if (variation === 'V1') {
+    dashComponent = 'V6_Dashboard'; bgColor = '#ffffff'; mountExtra = '';
+  } else {
+    dashComponent = 'V6_Dashboard'; bgColor = '#0d1b2a'; mountExtra = 'setV6Theme(true);\n';
+  }
+
+  const dateStr = window.__dataDate || '';
+  const dataBlock = `
+const PROPONENT_TYPES = ${JSON.stringify(PROPONENT_TYPES)};
+const COMPACTS = ${JSON.stringify(COMPACTS)};
+window.__dataDate = ${JSON.stringify(dateStr)};
+`;
+
+  const mountBlock = `
+${mountExtra}Object.assign(window, {
+  PROPONENT_TYPES, COMPACTS, COVERAGE_REGIONS,
+  METRICS, aggregate, formatValue, useAnimatedNumber,
+});
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<${dashComponent} />);
+`;
+
+  const exportHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Energy Compacts Metrics Dashboard (${variation === 'V1' ? 'UN Energy Website Theme' : 'SEforAll Website Theme'})</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,300;0,400;0,500;1,400&family=Oswald:wght@300;400;500;600;700&family=Open+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: ${bgColor}; }
+    body { font-family: "Open Sans", -apple-system, sans-serif; }
+    * { box-sizing: border-box; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin="anonymous"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.10/babel.min.js" crossorigin="anonymous"><\/script>
+<\/head>
+<body>
+  <div id="root"><\/div>
+  <script type="text/babel" data-presets="react">
+${metricsBlock}
+
+${dataBlock}
+
+${aggBlock}
+
+${mapBlock}
+
+${depsBlock}
+
+${varBlock}
+
+${mountBlock}
+  <\/script>
+<\/body>
+<\/html>`;
+
+  const blob = new Blob([exportHTML], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const themeLabel = variation === 'V1' ? 'UN_Energy_Theme' : 'SEforAll_Theme';
+  a.href = url; a.download = `SE4All_Dashboard_${themeLabel}.html`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// APP
+// ═══════════════════════════════════════════════════════════
+
+function App() {
+  const [data, setData] = React.useState(null);
+  const [variation, setVariation] = React.useState('V1');
+
+  if (!data) {
+    document.body.style.background = '#f7f8fa';
+    return <UploadScreen onDataLoaded={(p) => setData(p)} />;
+  }
+
+  const isDark = variation === 'V2';
+  setV6Theme(isDark);
+  document.body.style.background = isDark ? '#0d1b2a' : '#ffffff';
+
+  return (
+    <div style={{ width: '100%', minHeight: '100vh' }}>
+      <V6_Dashboard key={variation} />
+      <Toolbar variation={variation} onChange={setVariation}
+        onReset={() => { setData(null); window.__dataDate = ''; setV6Theme(false); document.body.style.background = '#fff'; }}
+        onExport={() => exportDashboardHTML(variation)} />
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+  </script>
+</body>
+</html>
